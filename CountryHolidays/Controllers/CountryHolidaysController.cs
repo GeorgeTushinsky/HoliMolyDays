@@ -111,29 +111,41 @@ namespace CountryHolidays.Controllers
         [HttpGet("CountryMaximumHolidaysInRow")]
         public async Task<int> GetCountryMaximumHolidaysInRow([FromQuery] GetCountryHolidays request, CancellationToken cancellationToken)
         {
-            var holidays = await _countryHolidayAdapter.GetCountryHolidays(request.Year, request.Country);
-            holidays = holidays.OrderBy(x => x.Date.Month).ThenBy(x => x.Date.Day).ToList();
-            var result = 0;
-            var counter = 0;
+            var cacheKey = $"CountryMaximumHolidaysInRow/{request.Year}/{request.Country}";
+            var cache = await _cache.GetStringAsync(cacheKey);
 
-            for (int i = 0; i < holidays.Count - 1; i++)
+            if (cache == null)
             {
-                var holiday = holidays[i].Date;
-                var nextHoliday = holidays[i + 1].Date;
-                var timeSpan = new DateTime(nextHoliday.Year, nextHoliday.Month, nextHoliday.Day) - new DateTime(holiday.Year, holiday.Month, holiday.Day);
+                var holidays = await _countryHolidayAdapter.GetCountryHolidays(request.Year, request.Country);
+                holidays = holidays.OrderBy(x => x.Date.Month).ThenBy(x => x.Date.Day).ToList();
+                var result = 0;
+                var counter = 0;
 
-                if (timeSpan.Days <= 1)
+                for (int i = 0; i < holidays.Count - 1; i++)
                 {
-                    counter++;
-                    result = counter > result ? counter : result;
+                    var holiday = holidays[i].Date;
+                    var nextHoliday = holidays[i + 1].Date;
+                    var timeSpan = new DateTime(nextHoliday.Year, nextHoliday.Month, nextHoliday.Day) - new DateTime(holiday.Year, holiday.Month, holiday.Day);
+
+                    if (timeSpan.Days <= 1)
+                    {
+                        counter++;
+                        result = counter > result ? counter : result;
+                    }
+                    else
+                    {
+                        counter = 1;
+                    }
                 }
-                else
-                {
-                    counter = 1;
-                }
+
+                var options = new DistributedCacheEntryOptions()
+                    .SetSlidingExpiration(TimeSpan.FromSeconds(CACHE_TIME));
+                await _cache.SetStringAsync(cacheKey, result.ToString(), options, cancellationToken);
+
+                return result;
             }
 
-            return result;
+            return Convert.ToInt32(cache);
         }
     }
 }
