@@ -1,17 +1,11 @@
 using CountryHolidays.Services;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.HttpsPolicy;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 using Microsoft.OpenApi.Models;
-using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Threading.Tasks;
 
 namespace CountryHolidays
 {
@@ -35,6 +29,15 @@ namespace CountryHolidays
                 c.CustomSchemaIds(x => x.FullName);
                 c.ResolveConflictingActions(apiDescriptions => apiDescriptions.First());
             });
+
+            services.AddDistributedSqlServerCache(options =>
+            {
+                options.ConnectionString = Configuration.GetConnectionString(
+                    "DistCache");
+                options.SchemaName = "dbo";
+                options.TableName = "CacheStore";
+            });
+            services.AddResponseCaching();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -50,6 +53,8 @@ namespace CountryHolidays
             app.UseHttpsRedirection();
 
             app.UseRouting();
+
+            app.UseResponseCaching();
 
             app.UseAuthorization();
 
